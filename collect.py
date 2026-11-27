@@ -39,16 +39,26 @@ AYLAR = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "
 
 
 def get(url):
-    """Önce tarayıcı taklidi yapan curl_cffi, olmazsa requests."""
+    """Önce tarayıcı taklidi yapan curl_cffi (farklı tarayıcı kimlikleriyle), olmazsa requests."""
+    kod, txt = 0, ""
     try:
         from curl_cffi import requests as cr
-        r = cr.get(url, headers=HEADERS, impersonate="chrome", timeout=30)
-        return r.status_code, r.text
+        for imp in ("chrome", "safari", "edge"):
+            r = cr.get(url, headers=HEADERS, impersonate=imp, timeout=30)
+            kod, txt = r.status_code, r.text
+            if kod == 200:
+                return kod, txt
+            time.sleep(5)
     except Exception as e:  # noqa
         print("curl_cffi olmadı:", e)
-    import requests
-    r = requests.get(url, headers=HEADERS, timeout=30)
-    return r.status_code, r.text
+    try:
+        import requests
+        r = requests.get(url, headers=HEADERS, timeout=30)
+        if r.status_code == 200 or not txt:
+            return r.status_code, r.text
+    except Exception as e:  # noqa
+        print("requests olmadı:", e)
+    return kod, txt
 
 
 def sayi(s):
@@ -152,6 +162,17 @@ def topla(kap_dosya, gi_dosya, aralik, ondalik, urls, simdi, bugun):
             break
         time.sleep(3)
 
+    if not satirlar and kap_dosya == "usdtry.csv":
+        rows, kaynak, kod = yedek_usdtry()
+        rows = sorted({d: v for d, v in rows if aralik[0] < v < aralik[1]}.items())
+        with open(os.path.join(DATA, "log.csv"), "a", newline="", encoding="utf-8") as f:
+            csv.writer(f).writerow([simdi.strftime("%Y-%m-%d %H:%M"), "usdtry_yedek:" + str(kaynak), kod, len(rows),
+                                    rows[-1][0] if rows else None, rows[-1][1] if rows else None, ""])
+        if rows:
+            satirlar, kullanilan = rows, "yedek:" + kaynak
+            # yedek kaynak yalnız eksik günleri doldurur, investing kayıtlarının üzerine yazmaz
+            mevcut = oku_csv(os.path.join(DATA, kap_dosya), "tarih")
+            satirlar = [(d, v) for d, v in satirlar if d.isoformat() not in mevcut]
     if not satirlar:
         print("VERİ ALINAMADI:", kap_dosya)
         return False
@@ -179,6 +200,32 @@ def topla(kap_dosya, gi_dosya, aralik, ondalik, urls, simdi, bugun):
             w.writerow([simdi.strftime("%Y-%m-%d %H:%M"), bugun.isoformat(), f"{bugunku[0]:.{ondalik}f}"])
     print("tamam:", kullanilan, "kapanış sayısı", len(kap))
     return True
+
+
+def yedek_usdtry():
+    """investing.com engellenirse USD/TRY günlük kapanış: Yahoo (TRY=X), sonra stooq."""
+    out = []
+    try:
+        kod, txt = get("https://query1.finance.yahoo.com/v8/finance/chart/TRY=X?range=3mo&interval=1d")
+        js = json.loads(txt)["chart"]["result"][0]
+        for ts, c in zip(js["timestamp"], js["indicators"]["quote"][0]["close"]):
+            if c:
+                out.append((dt.datetime.fromtimestamp(ts, TR).date(), float(c)))
+        if out:
+            return out, "yahoo", kod
+    except Exception as e:
+        print("yahoo kur olmadı:", e)
+    try:
+        kod, txt = get("https://stooq.com/q/d/l/?s=usdtry&i=d")
+        for r in csv.DictReader(txt.splitlines()):
+            if r.get("Date") and r.get("Close"):
+                out.append((tarih(r["Date"]), float(r["Close"])))
+        out = out[-70:]
+        if out:
+            return out, "stooq", kod
+    except Exception as e:
+        print("stooq kur olmadı:", e)
+    return [], None, 0
 
 
 def spx_aylik(simdi):
@@ -226,6 +273,12 @@ def main():
     bugun = simdi.astimezone(TR).date()
     sonuc = [topla(*v, simdi, bugun) for v in VARLIKLAR]
     spx_aylik(simdi)   # başarısızlığı iş akışını düşürmez
+    yol = os.path.join(DATA, "log.csv")
+    with open(yol, encoding="utf-8") as f:
+        satir = f.readlines()
+    if len(satir) > 601:
+        with open(yol, "w", encoding="utf-8") as f:
+            f.writelines(satir[:1] + satir[-600:])
     # ham sayfa arşivini 30 dosyayla sınırla
     raws = sorted(os.listdir(os.path.join(DATA, "raw")))
     for x in raws[:-30]:
