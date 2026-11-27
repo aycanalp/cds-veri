@@ -3,6 +3,7 @@
 Çıktılar (data/ klasörü):
   cds.csv / usdtry.csv              tarih,kapanis          -> yalnız bugünden ÖNCEKİ günler (kesin kapanış)
   gun_ici.csv / usdtry_gun_ici.csv  zaman_utc,tarih,deger  -> bugünün o anki değeri (kapanış değildir)
+  spx_aylik.csv                     ay,kapanis             -> S&P 500 tamamlanmış ay sonu kapanışları (stooq, yedek Yahoo)
   log.csv        her denemenin kaydı (adres, HTTP kodu, okunan satır, son tarih/değer, sayfa özeti)
   raw/           son 20 denemenin ham sayfası (sıkıştırılmış)
 """
@@ -180,11 +181,51 @@ def topla(kap_dosya, gi_dosya, aralik, ondalik, urls, simdi, bugun):
     return True
 
 
+def spx_aylik(simdi):
+    """S&P 500 ay sonu kapanışları (yalnız tamamlanmış aylar)."""
+    bu_ay = simdi.astimezone(TR).strftime("%Y-%m")
+    aylar, kaynak, kod = {}, None, 0
+    try:
+        kod, txt = get("https://stooq.com/q/d/l/?s=%5Espx&i=m")
+        for r in csv.DictReader(txt.splitlines()):
+            if r.get("Date") and r.get("Close"):
+                aylar[r["Date"][:7]] = float(r["Close"])
+        if aylar: kaynak = "stooq"
+    except Exception as e:
+        print("stooq olmadı:", e)
+    if not aylar:
+        try:
+            kod, txt = get("https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?range=5y&interval=1mo")
+            js = json.loads(txt)["chart"]["result"][0]
+            for ts, c in zip(js["timestamp"], js["indicators"]["quote"][0]["close"]):
+                if c: aylar[dt.datetime.fromtimestamp(ts, dt.timezone.utc).strftime("%Y-%m")] = float(c)
+            if aylar: kaynak = "yahoo"
+        except Exception as e:
+            print("yahoo olmadı:", e)
+    son = max(aylar) if aylar else None
+    with open(os.path.join(DATA, "log.csv"), "a", newline="", encoding="utf-8") as f:
+        csv.writer(f).writerow([simdi.strftime("%Y-%m-%d %H:%M"), "spx_aylik:" + str(kaynak), kod, len(aylar), son, aylar.get(son), ""])
+    if not aylar:
+        print("SPX VERİSİ ALINAMADI"); return False
+    yol = os.path.join(DATA, "spx_aylik.csv")
+    eski = oku_csv(yol, "ay")
+    for a, v in aylar.items():
+        if a < bu_ay:
+            eski[a] = {"ay": a, "kapanis": f"{v:.2f}"}
+    with open(yol, "w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=["ay", "kapanis"]); w.writeheader()
+        for k in sorted(eski)[-60:]:
+            w.writerow(eski[k])
+    print("spx tamam:", kaynak, len(eski))
+    return True
+
+
 def main():
     os.makedirs(os.path.join(DATA, "raw"), exist_ok=True)
     simdi = dt.datetime.now(dt.timezone.utc)
     bugun = simdi.astimezone(TR).date()
     sonuc = [topla(*v, simdi, bugun) for v in VARLIKLAR]
+    spx_aylik(simdi)   # başarısızlığı iş akışını düşürmez
     # ham sayfa arşivini 30 dosyayla sınırla
     raws = sorted(os.listdir(os.path.join(DATA, "raw")))
     for x in raws[:-30]:
