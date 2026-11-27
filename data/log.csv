@@ -18,3 +18,11 @@ zaman_utc,adres,http,satir,son_tarih,son_deger,sayfa_ozeti
 2026-11-27 15:35,https://uk.investing.com/rates-bonds/turkey-cds-5-year-usd-historical-data,200,22,2026-11-25,281.39898681640625,2596ed1d89d953ee
 2026-11-27 15:35,https://www.investing.com/currencies/usd-try-historical-data,200,24,2026-11-27,50.78739929199219,b4ef7a896692cd4d
 2026-11-27 15:35,spx_aylik:yahoo,200,60,2026-11,7256.52001953125,
+2026-11-27 23:43,https://www.investing.com/rates-bonds/turkey-cds-5-year-usd-historical-data,403,0,,,11efaa7dfa98dc0a
+2026-11-27 23:43,https://uk.investing.com/rates-bonds/turkey-cds-5-year-usd-historical-data,403,0,,,0cf7baa721da7214
+2026-11-27 23:43,https://tr.investing.com/rates-bonds/turkey-cds-5-year-usd-historical-data,403,0,,,f2bef9ab4f4a8c83
+2026-11-27 23:43,https://www.investing.com/currencies/usd-try-historical-data,403,0,,,d0c29adcb535c763
+2026-11-27 23:43,https://uk.investing.com/currencies/usd-try-historical-data,403,0,,,637f49400ad891db
+2026-11-27 23:43,https://tr.investing.com/currencies/usd-try-historical-data,403,0,,,db2fecf3bba41a93
+2026-11-27 23:43,usdtry_yedek:yahoo,200,67,2026-11-27,50.744998931884766,
+2026-11-27 23:43,spx_aylik:yahoo,200,60,2026-11,7297.490234375,
