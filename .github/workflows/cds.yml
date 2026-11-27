@@ -3,11 +3,16 @@ name: Turkiye CDS toplayici
 on:
   workflow_dispatch:
   schedule:
-    # 09:41 ve 16:41 Istanbul (UTC+3) = 06:41 ve 13:41 UTC, hafta ici
-    - cron: "41 6,13 * * 1-5"
+    # Hafta ici her 2 saatte bir: 08:41 - 22:41 Istanbul (05:41 - 19:41 UTC).
+    # investing.com bazi GitHub sunucularini engelliyor; sik deneme bir tanesinin basarili olmasini saglar.
+    - cron: "41 5-19/2 * * 1-5"
 
 permissions:
   contents: write
+
+concurrency:
+  group: cds-toplayici
+  cancel-in-progress: false
 
 jobs:
   topla:
@@ -31,4 +36,4 @@ jobs:
           git config user.name "CDS toplayici"
           git config user.email "actions@users.noreply.github.com"
           git add data/
-          git diff --cached --quiet || (git commit -m "CDS verisi $(date -u +%Y-%m-%d_%H:%M)" && git push)
+          git diff --cached --quiet || (git commit -m "CDS verisi $(date -u +%Y-%m-%d_%H:%M)" && git pull --rebase && git push)
